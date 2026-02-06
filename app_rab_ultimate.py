@@ -11,7 +11,7 @@ from fpdf import FPDF
 # ==========================================
 st.set_page_config(page_title="RAB MASTER PRO", page_icon="🏗️", layout="wide")
 
-# CSS untuk meniru tampilan React (Dark Blue Theme)
+# CSS Custom (Dark Mode Professional)
 st.markdown("""
 <style>
     .stApp { background-color: #0f172a; color: #f1f5f9; }
@@ -19,7 +19,8 @@ st.markdown("""
     .metric-card { background-color: #1e293b; padding: 15px; border-radius: 10px; border: 1px solid #334155; }
     h1, h2, h3 { color: #f8fafc; }
     .stDataFrame { border: 1px solid #334155; }
-    .css-1aumxhk { background-color: #1e293b; } /* Sidebar color adjustment */
+    /* Tombol Navigasi Khusus */
+    .stButton button { width: 100%; border-radius: 5px; font-weight: bold;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -27,7 +28,13 @@ def format_idr(val):
     return f"Rp {val:,.0f}".replace(",", ".")
 
 # ==========================================
-# 2. INISIALISASI DATABASE (PORTING DARI REACT)
+# 2. FUNGSI NAVIGASI (PINDAH TAB)
+# ==========================================
+def pindah_ke_ahsp():
+    st.session_state.sb_menu = "Analisa AHSP"
+
+# ==========================================
+# 3. INISIALISASI DATABASE
 # ==========================================
 def init_state():
     # A. Identitas Proyek
@@ -46,7 +53,7 @@ def init_state():
     if 'tax_settings' not in st.session_state:
         st.session_state.tax_settings = {"profit": 10.0, "ppn": 11.0}
 
-    # C. Database Resources (Lengkap sesuai React)
+    # C. Database Resources (LENGKAP)
     if 'resources' not in st.session_state:
         data_resources = [
             {'id': 'L.01', 'category': 'Upah', 'name': 'Pekerja', 'unit': 'OH', 'price': 107000},
@@ -111,7 +118,7 @@ def init_state():
         ]
         st.session_state.resources = pd.DataFrame(data_resources)
 
-    # D. Database AHSP (Lengkap sesuai React)
+    # D. Database AHSP Master (LENGKAP)
     if 'ahsp_master' not in st.session_state:
         st.session_state.ahsp_master = {
             'AHSP.P.01': {'name': 'Pagar Sementara Seng', 'unit': 'm', 'components': [{'id': 'L.01', 'coef': 0.4}, {'id': 'L.02.2', 'coef': 0.2}, {'id': 'M.12', 'coef': 0.015}, {'id': 'M.24', 'coef': 1.2}, {'id': 'M.10', 'coef': 0.05}]},
@@ -136,7 +143,7 @@ def init_state():
             'AHSP.P.02': {'name': 'Instalasi Air Bersih', 'unit': 'm', 'components': [{'id': 'L.02.6', 'coef': 0.15}, {'id': 'P.01', 'coef': 1.2}]},
         }
 
-    # E. Data RAB (Hierarki: Group -> SubGroup -> Items) - SESUAI REACT ANDA
+    # E. Data RAB (Hierarki: Group -> SubGroup -> Items)
     if 'rab_data' not in st.session_state:
         st.session_state.rab_data = [
             {
@@ -341,74 +348,58 @@ def init_state():
 init_state()
 
 # ==========================================
-# 3. ENGINE PERHITUNGAN (THE BRAIN)
+# 4. LOGIC ENGINE
 # ==========================================
 def calculate_ahsp_price(ahsp_id):
-    """Menghitung harga satuan AHSP berdasarkan harga Resource terkini"""
     recipe = st.session_state.ahsp_master.get(ahsp_id)
     if not recipe: return 0
-    
     total = 0
-    # Create lookup dict for speed
     res_map = {row['id']: row['price'] for row in st.session_state.resources.to_dict('records')}
-    
     for comp in recipe['components']:
         price = res_map.get(comp['id'], 0)
         total += price * comp['coef']
     return total
 
 def recalculate_totals():
-    """Menghitung ulang seluruh RAB"""
     grand_total_fisik = 0
     chart_data = []
-
     for group in st.session_state.rab_data:
         group_total = 0
-        
-        # Safety Check for hierarchy
         if 'subgroups' in group:
             for sub in group['subgroups']:
                 sub_total = 0
                 for item in sub['items']:
-                    # Logika penentuan harga (AHSP vs Manual)
                     if item.get('ahsp') and item['ahsp'] in st.session_state.ahsp_master:
                         unit_price = calculate_ahsp_price(item['ahsp'])
                     else:
                         unit_price = item.get('manual_price', 0)
-                    
                     item['current_price'] = unit_price
                     item['total_price'] = unit_price * item['vol']
                     sub_total += item['total_price']
-                
                 sub['sub_total'] = sub_total
                 group_total += sub_total
-        
         group['group_total'] = group_total
         grand_total_fisik += group_total
         chart_data.append({"Divisi": group['title'], "Total": group_total})
-
     profit = grand_total_fisik * (st.session_state.tax_settings['profit'] / 100)
     subtotal = grand_total_fisik + profit
     ppn = subtotal * (st.session_state.tax_settings['ppn'] / 100)
     final_total = subtotal + ppn
-
     return grand_total_fisik, profit, ppn, final_total, chart_data
 
-# Jalankan kalkulasi setiap refresh
 real_cost, val_profit, val_ppn, val_final, chart_data = recalculate_totals()
 
 # ==========================================
-# 4. PDF ENGINE (FPDF)
+# 5. PDF ENGINE
 # ==========================================
 class PDFReport(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 14)
         self.cell(0, 10, f"REKAPITULASI RAB: {st.session_state.project_info['name'].upper()}", 0, 1, 'C')
         self.set_font('Arial', 'I', 10)
-        self.cell(0, 10, f"Lokasi: {st.session_state.project_info['location']} | Tahun: {st.session_state.project_info['year']}", 0, 1, 'C')
+        self.cell(0, 10, f"Lokasi: {st.session_state.project_info['location']} | Owner: {st.session_state.project_info['owner']}", 0, 1, 'C')
         self.line(10, 30, 200, 30)
         self.ln(10)
-
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
@@ -418,29 +409,22 @@ def generate_pdf():
     pdf = PDFReport()
     pdf.add_page()
     pdf.set_font("Arial", size=10)
-    
-    # Header Table
     pdf.set_fill_color(220, 220, 220)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(15, 10, "NO", 1, 0, 'C', 1)
     pdf.cell(120, 10, "URAIAN PEKERJAAN", 1, 0, 'C', 1)
     pdf.cell(55, 10, "JUMLAH (Rp)", 1, 1, 'C', 1)
-    
-    # Body
     pdf.set_font("Arial", size=10)
     for group in st.session_state.rab_data:
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(15, 8, group['id'], 1, 0, 'C')
         pdf.cell(120, 8, group['title'], 1, 0, 'L')
         pdf.cell(55, 8, f"{group['group_total']:,.0f}", 1, 1, 'R')
-        
         for sub in group['subgroups']:
             pdf.set_font("Arial", 'I', 9)
             pdf.cell(15, 6, "", 1, 0)
             pdf.cell(120, 6, f"  > {sub['title']}", 1, 0, 'L')
             pdf.cell(55, 6, f"{sub['sub_total']:,.0f}", 1, 1, 'R')
-
-    # Footer Totals
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(135, 8, "REAL COST (FISIK)", 1, 0, 'R')
@@ -449,44 +433,42 @@ def generate_pdf():
     pdf.cell(55, 8, f"{val_profit:,.0f}", 1, 1, 'R')
     pdf.cell(135, 8, f"PPN ({st.session_state.tax_settings['ppn']}%)", 1, 0, 'R')
     pdf.cell(55, 8, f"{val_ppn:,.0f}", 1, 1, 'R')
-    
     pdf.set_fill_color(50, 50, 50)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(135, 10, "GRAND TOTAL", 1, 0, 'R', 1)
     pdf.cell(55, 10, f"{val_final:,.0f}", 1, 1, 'R', 1)
-    
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# 5. UI LAYOUT
+# 6. UI LAYOUT
 # ==========================================
 with st.sidebar:
     st.title("🏗️ RAB MASTER")
     st.caption("Ultimate Python Edition")
     
-    menu = st.radio("Navigasi", ["Dashboard", "Rincian RAB (Input)", "Analisa AHSP", "Database Harga", "File & Laporan"])
+    # State-based menu navigation
+    if 'sb_menu' not in st.session_state:
+        st.session_state.sb_menu = "Dashboard"
+        
+    menu = st.radio("Navigasi", ["Dashboard", "Rincian RAB (Input)", "Analisa AHSP", "Database Harga", "File & Laporan"], key="sb_menu")
     
     st.divider()
     st.markdown("### ⚙️ Pengaturan")
     profit_in = st.number_input("Profit (%)", value=st.session_state.tax_settings['profit'])
     ppn_in = st.number_input("PPN (%)", value=st.session_state.tax_settings['ppn'])
-    
     if profit_in != st.session_state.tax_settings['profit'] or ppn_in != st.session_state.tax_settings['ppn']:
         st.session_state.tax_settings.update({"profit": profit_in, "ppn": ppn_in})
         st.rerun()
-
     st.info(f"**Grand Total:**\n### {format_idr(val_final)}")
 
 # --- HALAMAN: DASHBOARD ---
 if menu == "Dashboard":
     st.title("Executive Summary")
-    
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Real Cost (Fisik)", f"{real_cost/1e6:.1f} Jt")
     col2.metric("Profit", f"{val_profit/1e6:.1f} Jt", f"{st.session_state.tax_settings['profit']}%")
     col3.metric("PPN", f"{val_ppn/1e6:.1f} Jt", f"{st.session_state.tax_settings['ppn']}%")
     col4.metric("GRAND TOTAL", f"{val_final/1e9:.3f} M")
-
     c1, c2 = st.columns([2, 1])
     with c1:
         st.subheader("Distribusi Biaya")
@@ -504,17 +486,16 @@ if menu == "Dashboard":
 # --- HALAMAN: INPUT RAB ---
 elif menu == "Rincian RAB (Input)":
     st.title("Rincian Anggaran Biaya")
-    st.caption("Tips: Pilih AHSP untuk harga otomatis, atau isi Manual Price.")
     
+    # Tombol Pindah ke AHSP
+    st.button("⚙️ Kelola / Buat AHSP Baru", on_click=pindah_ke_ahsp, type="primary")
+    st.divider()
+
     for g_idx, group in enumerate(st.session_state.rab_data):
         with st.expander(f"{group['id']}. {group['title']}  |  {format_idr(group['group_total'])}", expanded=True):
-            
             for s_idx, sub in enumerate(group['subgroups']):
                 st.markdown(f"**{sub['id']} - {sub['title']}**")
-                
-                # Menggunakan Data Editor untuk pengalaman seperti Excel
                 df_sub = pd.DataFrame(sub['items'])
-                
                 edited_df = st.data_editor(
                     df_sub,
                     column_config={
@@ -530,10 +511,7 @@ elif menu == "Rincian RAB (Input)":
                     num_rows="dynamic",
                     key=f"editor_{group['id']}_{sub['id']}"
                 )
-                
-                # Simpan perubahan ke session state
                 if not edited_df.equals(df_sub):
-                    # Handle NaN/None conversion
                     edited_df['ahsp'] = edited_df['ahsp'].where(pd.notnull(edited_df['ahsp']), None)
                     st.session_state.rab_data[g_idx]['subgroups'][s_idx]['items'] = edited_df.to_dict('records')
                     st.rerun()
@@ -543,33 +521,75 @@ elif menu == "Rincian RAB (Input)":
 elif menu == "Database Harga":
     st.title("Database Harga Dasar")
     st.info("Harga di sini terlink otomatis ke AHSP dan RAB.")
-    
     edited_res = st.data_editor(
         st.session_state.resources,
-        column_config={
-            "price": st.column_config.NumberColumn("Harga (Rp)", format="Rp %d")
-        },
+        column_config={"price": st.column_config.NumberColumn("Harga (Rp)", format="Rp %d")},
         use_container_width=True,
         num_rows="dynamic",
         key="res_editor"
     )
-    
     if not edited_res.equals(st.session_state.resources):
         st.session_state.resources = edited_res
         st.rerun()
 
-# --- HALAMAN: ANALISA AHSP ---
+# --- HALAMAN: ANALISA AHSP (CUSTOM) ---
 elif menu == "Analisa AHSP":
     st.title("Master Analisa (AHSP)")
     
-    sel_ahsp = st.selectbox("Pilih Analisa", list(st.session_state.ahsp_master.keys()))
+    # 1. MENU PEMBUATAN AHSP BARU
+    with st.expander("➕ Buat Analisa Baru (Custom)", expanded=False):
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c1: new_ahsp_id = st.text_input("Kode (Cth: AHSP.X.01)")
+        with c2: new_ahsp_name = st.text_input("Nama Pekerjaan")
+        with c3: new_ahsp_unit = st.selectbox("Satuan", ["M2", "M3", "Bh", "Ls", "Kg", "M'"])
+        
+        st.write("Tambahkan Sumber Daya (Pilih ID Resource dan Koefisien):")
+        
+        # Template tabel kosong untuk input komponen
+        component_template = pd.DataFrame([{"Resource_ID": "L.01", "Koefisien": 1.0}])
+        
+        # Dropdown pilihan Resource ID diambil dari database
+        all_res_ids = st.session_state.resources['id'].tolist()
+        
+        edited_comps = st.data_editor(
+            component_template,
+            column_config={
+                "Resource_ID": st.column_config.SelectboxColumn("Pilih Sumber Daya", options=all_res_ids, width="medium"),
+                "Koefisien": st.column_config.NumberColumn("Koefisien", min_value=0.0, format="%.4f")
+            },
+            num_rows="dynamic",
+            use_container_width=True,
+            key="new_ahsp_comp_editor"
+        )
+        
+        if st.button("Simpan Analisa Baru"):
+            if new_ahsp_id and new_ahsp_name and not edited_comps.empty:
+                # Konversi dataframe editor ke format dictionary AHSP
+                comp_list = []
+                for idx, row in edited_comps.iterrows():
+                    if row['Resource_ID']:
+                        comp_list.append({"id": row['Resource_ID'], "coef": row['Koefisien']})
+                
+                # Simpan ke session state master
+                st.session_state.ahsp_master[new_ahsp_id] = {
+                    "name": new_ahsp_name,
+                    "unit": new_ahsp_unit,
+                    "components": comp_list
+                }
+                st.success(f"Analisa {new_ahsp_id} berhasil disimpan!")
+                st.rerun()
+            else:
+                st.error("Mohon lengkapi Kode, Nama, dan minimal 1 Komponen.")
+
+    st.divider()
+
+    # 2. MENU VIEWER AHSP EXISTING
+    sel_ahsp = st.selectbox("Lihat Detail Analisa:", list(st.session_state.ahsp_master.keys()))
     if sel_ahsp:
         dat = st.session_state.ahsp_master[sel_ahsp]
         st.subheader(f"{sel_ahsp} - {dat['name']}")
-        
         comps = []
         res_map = {row['id']: row for row in st.session_state.resources.to_dict('records')}
-        
         for c in dat['components']:
             r = res_map.get(c['id'])
             if r:
@@ -580,7 +600,6 @@ elif menu == "Analisa AHSP":
                     "Hrg Satuan": r['price'],
                     "Total": c['coef'] * r['price']
                 })
-        
         df_c = pd.DataFrame(comps)
         st.dataframe(df_c, use_container_width=True)
         if not df_c.empty:
@@ -589,7 +608,6 @@ elif menu == "Analisa AHSP":
 # --- HALAMAN: FILE ---
 elif menu == "File & Laporan":
     st.title("Export & Import")
-    
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Simpan")
@@ -602,11 +620,9 @@ elif menu == "File & Laporan":
         }
         json_str = json.dumps(full_dump, indent=2)
         st.download_button("💾 Download JSON Project", json_str, "rab_full.json", "application/json")
-        
         if st.button("🖨️ Download PDF Laporan"):
             pdf_bytes = generate_pdf()
             st.download_button("📥 Klik untuk Unduh PDF", pdf_bytes, "Laporan_RAB_Lengkap.pdf", "application/pdf")
-            
     with c2:
         st.subheader("Buka")
         up_file = st.file_uploader("Upload JSON", type=['json'])
