@@ -7,62 +7,64 @@ from datetime import datetime
 from fpdf import FPDF
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & TEMA CERAH
+# 1. KONFIGURASI HALAMAN & TEMA CERAH (LIGHT MODE)
 # ==========================================
-st.set_page_config(page_title="RAB MASTER PRO (Bright)", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="RAB MASTER PRO", page_icon="🏗️", layout="wide")
 
-# CSS Custom: TEMA CERAH (LIGHT MODE) PROFESSIONAL
+# CSS Custom: TEMA CERAH + FIXED TABLE
 st.markdown("""
 <style>
-    /* Main Background Putih Bersih */
+    /* Global Styles */
     .stApp {
-        background-color: #f8f9fa;
-        color: #212529;
-    }
-    
-    /* Styling Card/Metric agar menonjol di background putih */
-    .metric-card {
-        background-color: #ffffff;
-        padding: 20px;
-        border-radius: 12px;
-        border: 1px solid #dee2e6;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-        text-align: center;
-    }
-    
-    /* Styling Expander (Grup RAB) */
-    .stExpander {
-        background-color: #ffffff;
-        border: 1px solid #e9ecef;
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-    }
-    
-    /* Header Typography */
-    h1, h2, h3 {
-        color: #0d6efd; /* Biru Bootstrap */
-        font-family: 'Segoe UI', sans-serif;
-        font-weight: 700;
-    }
-    
-    /* Dataframe Table Style */
-    .stDataFrame {
-        border: 1px solid #dee2e6;
-        border-radius: 5px;
+        background-color: #ffffff; /* Putih Bersih */
+        color: #2c3e50; /* Dark Blue Text */
     }
     
     /* Sidebar Styling */
     section[data-testid="stSidebar"] {
-        background-color: #ffffff;
+        background-color: #f8f9fa; /* Light Grey */
         border-right: 1px solid #dee2e6;
     }
     
-    /* Tombol Navigasi */
+    /* Card / Metrics */
+    .metric-card {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        text-align: center;
+        transition: transform 0.2s;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        border-color: #3b82f6;
+    }
+    
+    /* Expander Styling */
+    .stExpander {
+        background-color: #ffffff;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+    
+    /* Typography */
+    h1, h2, h3 {
+        color: #1e3a8a; /* Strong Blue */
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    /* Data Editor / Tables */
+    .stDataFrame, .stDataEditor {
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+    }
+    
+    /* Tombol */
     .stButton button {
-        width: 100%;
         border-radius: 6px;
         font-weight: 600;
-        transition: all 0.3s;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -71,13 +73,7 @@ def format_idr(val):
     return f"Rp {val:,.0f}".replace(",", ".")
 
 # ==========================================
-# 2. FUNGSI UTILITAS
-# ==========================================
-def pindah_ke_ahsp():
-    st.session_state.sb_menu = "Analisa AHSP"
-
-# ==========================================
-# 3. INISIALISASI DATABASE (LENGKAP)
+# 2. INISIALISASI DATABASE (DATABASE UTAMA)
 # ==========================================
 def init_state():
     # A. Identitas Proyek
@@ -96,7 +92,8 @@ def init_state():
     if 'tax_settings' not in st.session_state:
         st.session_state.tax_settings = {"profit": 10.0, "ppn": 11.0}
 
-    # C. Database Resources (SEMUA DATA L.01 - P.03 MASUK DISINI)
+    # C. Database Resources (HARGA DASAR)
+    # PENTING: ID disini harus sama persis dengan yang dipanggil di AHSP
     if 'resources' not in st.session_state:
         data_resources = [
             {'id': 'L.01', 'category': 'Upah', 'name': 'Pekerja', 'unit': 'OH', 'price': 107000},
@@ -161,7 +158,8 @@ def init_state():
         ]
         st.session_state.resources = pd.DataFrame(data_resources)
 
-    # D. Database AHSP Master (LENGKAP)
+    # D. Database AHSP Master (RESEP)
+    # Ini menentukan bagaimana harga dihitung dari Resources
     if 'ahsp_master' not in st.session_state:
         st.session_state.ahsp_master = {
             'AHSP.P.01': {'name': 'Pagar Sementara Seng', 'unit': 'm', 'components': [{'id': 'L.01', 'coef': 0.4}, {'id': 'L.02.2', 'coef': 0.2}, {'id': 'M.12', 'coef': 0.015}, {'id': 'M.24', 'coef': 1.2}, {'id': 'M.10', 'coef': 0.05}]},
@@ -186,7 +184,7 @@ def init_state():
             'AHSP.P.02': {'name': 'Instalasi Air Bersih', 'unit': 'm', 'components': [{'id': 'L.02.6', 'coef': 0.15}, {'id': 'P.01', 'coef': 1.2}]},
         }
 
-    # E. Data RAB (Hierarki: Group -> SubGroup -> Items) - LENGKAP
+    # E. Data RAB (Hierarki: Group -> SubGroup -> Items)
     if 'rab_data' not in st.session_state:
         st.session_state.rab_data = [
             {
@@ -399,7 +397,7 @@ def calculate_ahsp_price(ahsp_id):
     if not recipe: return 0
     
     total = 0
-    # Create lookup dict for speed
+    # Lookup data resource dari dataframe
     res_map = {row['id']: row['price'] for row in st.session_state.resources.to_dict('records')}
     
     for comp in recipe['components']:
@@ -421,14 +419,13 @@ def recalculate_totals():
                 sub_total = 0
                 for item in sub['items']:
                     # LOGIKA UTAMA: LINKING AHSP -> HARGA SATUAN
+                    # JIKA AHSP ADA DAN VALID, HITUNG. JIKA TIDAK, PAKAI MANUAL.
                     if item.get('ahsp') and item['ahsp'] in st.session_state.ahsp_master:
-                        # Jika AHSP dipilih, hitung harga dari resep
                         unit_price = calculate_ahsp_price(item['ahsp'])
                     else:
-                        # Jika tidak, pakai harga manual
                         unit_price = item.get('manual_price', 0)
                     
-                    # Update data di session state (Linkage)
+                    # UPDATE DATA DI STATE (PENTING AGAR TIDAK 0 SAAT RENDER)
                     item['current_price'] = unit_price
                     item['total_price'] = unit_price * item['vol']
                     sub_total += item['total_price']
@@ -447,11 +444,17 @@ def recalculate_totals():
 
     return grand_total_fisik, profit, ppn, final_total, chart_data
 
-# Jalankan kalkulasi setiap refresh agar data selalu up-to-date
+# === PENTING: JALANKAN KALKULASI SEBELUM RENDER UI AGAR HARGA TIDAK 0 ===
 real_cost, val_profit, val_ppn, val_final, chart_data = recalculate_totals()
 
 # ==========================================
-# 5. PDF ENGINE (FPDF)
+# 5. FUNGSI UTILITAS NAVIGASI
+# ==========================================
+def pindah_ke_ahsp():
+    st.session_state.sb_menu = "Analisa AHSP"
+
+# ==========================================
+# 6. PDF ENGINE (FPDF)
 # ==========================================
 class PDFReport(FPDF):
     def header(self):
@@ -473,7 +476,7 @@ def generate_pdf():
     pdf.set_font("Arial", size=10)
     
     # Header Table
-    pdf.set_fill_color(240, 240, 240) # Light Gray for Header
+    pdf.set_fill_color(240, 240, 240)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(15, 10, "NO", 1, 0, 'C', 1)
     pdf.cell(120, 10, "URAIAN PEKERJAAN", 1, 0, 'C', 1)
@@ -503,14 +506,14 @@ def generate_pdf():
     pdf.cell(135, 8, f"PPN ({st.session_state.tax_settings['ppn']}%)", 1, 0, 'R')
     pdf.cell(55, 8, f"{val_ppn:,.0f}", 1, 1, 'R')
     
-    pdf.set_fill_color(220, 230, 240) # Soft Blue for Total
+    pdf.set_fill_color(230, 240, 255)
     pdf.cell(135, 10, "GRAND TOTAL", 1, 0, 'R', 1)
     pdf.cell(55, 10, f"{val_final:,.0f}", 1, 1, 'R', 1)
     
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# 6. UI LAYOUT
+# 7. UI LAYOUT
 # ==========================================
 with st.sidebar:
     st.title("🏗️ RAB MASTER")
@@ -534,7 +537,7 @@ with st.sidebar:
     # Grand Total Display
     st.markdown("---")
     st.markdown("<p style='font-size: 12px; color: #666;'>Total Proyek:</p>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='color: #0d6efd; margin-top: -15px;'>{format_idr(val_final)}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='color: #1e3a8a; margin-top: -15px;'>{format_idr(val_final)}</h2>", unsafe_allow_html=True)
 
 # --- HALAMAN: DASHBOARD ---
 if menu == "Dashboard":
@@ -549,7 +552,7 @@ if menu == "Dashboard":
     with col3:
         st.markdown(f"<div class='metric-card'><h3>PPN</h3><p style='font-size: 18px; font-weight: bold;'>{format_idr(val_ppn)}</p></div>", unsafe_allow_html=True)
     with col4:
-        st.markdown(f"<div class='metric-card' style='border-color: #0d6efd;'><h3>GRAND TOTAL</h3><p style='font-size: 18px; font-weight: bold; color: #0d6efd;'>{format_idr(val_final)}</p></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='metric-card' style='border-color: #1e3a8a;'><h3>GRAND TOTAL</h3><p style='font-size: 18px; font-weight: bold; color: #1e3a8a;'>{format_idr(val_final)}</p></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -614,20 +617,16 @@ elif menu == "Rincian RAB (Input)":
                 
                 # --- LOGIKA LINKING DATA (INTI APLIKASI) ---
                 if not edited_df.equals(df_sub):
-                    # 1. Deteksi perubahan
                     updated_items = edited_df.to_dict('records')
                     
-                    # 2. Iterate dan update harga satuan
                     for item in updated_items:
-                        # Konversi NaN ke None agar dropdown konsisten
+                        # 1. Bersihkan nilai NaN pada AHSP agar dropdown tidak error
                         if pd.isna(item['ahsp']): item['ahsp'] = None
                         
-                        # Hitung ulang harga satuan jika AHSP dipilih
+                        # 2. Logic Reset Manual Price jika AHSP dipilih (Opsional, agar rapi)
                         if item['ahsp'] and item['ahsp'] in st.session_state.ahsp_master:
-                            item['manual_price'] = 0 # Reset manual price jika AHSP aktif
-                            # Harga akan dihitung ulang di fungsi recalculate_totals() saat rerun
+                            item['manual_price'] = 0 
                         
-                    # 3. Simpan ke session state
                     st.session_state.rab_data[g_idx]['subgroups'][s_idx]['items'] = updated_items
                     st.rerun() # Refresh untuk update Total Harga di UI
                 # ---------------------------------------------
