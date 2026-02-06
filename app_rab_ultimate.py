@@ -3,68 +3,66 @@ import pandas as pd
 import plotly.express as px
 import json
 import io
-from datetime import datetime
 from fpdf import FPDF
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & TEMA CERAH (LIGHT MODE)
+# 1. KONFIGURASI HALAMAN & TEMA CERAH
 # ==========================================
 st.set_page_config(page_title="RAB MASTER PRO", page_icon="🏗️", layout="wide")
 
-# CSS Custom: TEMA CERAH + FIXED TABLE
+# CSS: TEMA CERAH (SUPER BRIGHT MODE)
 st.markdown("""
 <style>
-    /* Global Styles */
+    /* Background Utama Putih */
     .stApp {
-        background-color: #ffffff; /* Putih Bersih */
-        color: #2c3e50; /* Dark Blue Text */
-    }
-    
-    /* Sidebar Styling */
-    section[data-testid="stSidebar"] {
-        background-color: #f8f9fa; /* Light Grey */
-        border-right: 1px solid #dee2e6;
-    }
-    
-    /* Card / Metrics */
-    .metric-card {
         background-color: #ffffff;
-        padding: 20px;
-        border-radius: 12px;
-        border: 1px solid #e0e0e0;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-        text-align: center;
-        transition: transform 0.2s;
-    }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        border-color: #3b82f6;
+        color: #2c3e50;
     }
     
-    /* Expander Styling */
+    /* Sidebar Abu-abu Muda */
+    section[data-testid="stSidebar"] {
+        background-color: #f8f9fa;
+        border-right: 1px solid #e9ecef;
+    }
+    
+    /* Expander Putih dengan Border Halus */
     .stExpander {
         background-color: #ffffff;
-        border: 1px solid #d1d5db;
+        border: 1px solid #dee2e6;
         border-radius: 8px;
-        margin-bottom: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     
-    /* Typography */
-    h1, h2, h3 {
-        color: #1e3a8a; /* Strong Blue */
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* Judul & Header Biru Profesional */
+    h1, h2, h3, h4 {
+        color: #0d6efd !important;
+        font-family: 'Segoe UI', sans-serif;
     }
     
-    /* Data Editor / Tables */
-    .stDataFrame, .stDataEditor {
-        border: 1px solid #e5e7eb;
+    /* Kartu Metric */
+    .metric-card {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    
+    /* Tabel Data Editor */
+    .stDataFrame {
+        border: 1px solid #ced4da;
+    }
+    
+    /* Tombol Biru */
+    div.stButton > button {
+        background-color: #0d6efd;
+        color: white;
         border-radius: 6px;
+        border: none;
     }
-    
-    /* Tombol */
-    .stButton button {
-        border-radius: 6px;
-        font-weight: 600;
+    div.stButton > button:hover {
+        background-color: #0b5ed7;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -73,27 +71,25 @@ def format_idr(val):
     return f"Rp {val:,.0f}".replace(",", ".")
 
 # ==========================================
-# 2. INISIALISASI DATABASE (DATABASE UTAMA)
+# 2. INISIALISASI DATABASE (LENGKAP & FIX ID)
 # ==========================================
 def init_state():
-    # A. Identitas Proyek
+    # A. Project Info
     if 'project_info' not in st.session_state:
         st.session_state.project_info = {
             "name": "Pembangunan Gedung Operasional",
             "location": "Bandung, Jawa Barat",
             "year": "2025",
             "owner": "OM RIO",
-            "consultant": "SMARTSTUDIO",
-            "contractor": "SMARTSTUDIO KONTRAKTOR",
-            "email": "smartstudio@gmail.com"
+            "consultant": "SMARTSTUDIO"
         }
     
-    # B. Settings Pajak
+    # B. Tax Settings
     if 'tax_settings' not in st.session_state:
         st.session_state.tax_settings = {"profit": 10.0, "ppn": 11.0}
 
-    # C. Database Resources (HARGA DASAR)
-    # PENTING: ID disini harus sama persis dengan yang dipanggil di AHSP
+    # C. DATABASE RESOURCES (HARGA DASAR)
+    # ID disini Wajib sama dengan komponen AHSP
     if 'resources' not in st.session_state:
         data_resources = [
             {'id': 'L.01', 'category': 'Upah', 'name': 'Pekerja', 'unit': 'OH', 'price': 107000},
@@ -106,7 +102,8 @@ def init_state():
             {'id': 'L.02.7', 'category': 'Upah', 'name': 'Tukang Alumunium', 'unit': 'OH', 'price': 110000},
             {'id': 'L.03', 'category': 'Upah', 'name': 'Kepala Tukang', 'unit': 'OH', 'price': 120000},
             {'id': 'L.04', 'category': 'Upah', 'name': 'Mandor', 'unit': 'OH', 'price': 125000},
-            # Material Sipil
+            
+            # Material
             {'id': 'M.01', 'category': 'Bahan', 'name': 'Semen Portland (PC)', 'unit': 'Kg', 'price': 1516},
             {'id': 'M.01b', 'category': 'Bahan', 'name': 'Semen Mortar', 'unit': 'Kg', 'price': 2500},
             {'id': 'M.02', 'category': 'Bahan', 'name': 'Pasir Beton', 'unit': 'Kg', 'price': 1000},
@@ -115,39 +112,39 @@ def init_state():
             {'id': 'M.04', 'category': 'Bahan', 'name': 'Kerikil / Split', 'unit': 'Kg', 'price': 1000},
             {'id': 'M.05', 'category': 'Bahan', 'name': 'Batu Belah', 'unit': 'M3', 'price': 300000},
             {'id': 'M.06', 'category': 'Bahan', 'name': 'Bata Merah', 'unit': 'Bh', 'price': 1000},
-            {'id': 'M.07', 'category': 'Bahan', 'name': 'Bata Ringan (Hebel)', 'unit': 'Bh', 'price': 8500},
+            {'id': 'M.07', 'category': 'Bahan', 'name': 'Bata Ringan', 'unit': 'Bh', 'price': 8500},
             {'id': 'M.07b', 'category': 'Bahan', 'name': 'Batako', 'unit': 'Bh', 'price': 2500},
             {'id': 'M.07c', 'category': 'Bahan', 'name': 'Roster Beton', 'unit': 'Bh', 'price': 15000},
             {'id': 'M.08', 'category': 'Bahan', 'name': 'Besi Beton Polos', 'unit': 'Kg', 'price': 10900},
             {'id': 'M.09', 'category': 'Bahan', 'name': 'Kawat Beton', 'unit': 'Kg', 'price': 15000},
             {'id': 'M.10', 'category': 'Bahan', 'name': 'Paku Campur', 'unit': 'Kg', 'price': 25000},
-            # Bekisting
             {'id': 'M.11', 'category': 'Bahan', 'name': 'Kayu Papan Bekisting', 'unit': 'M3', 'price': 2407000},
             {'id': 'M.12', 'category': 'Bahan', 'name': 'Kayu Kaso 5/7', 'unit': 'M3', 'price': 1800000},
             {'id': 'M.13', 'category': 'Bahan', 'name': 'Multiplek 9mm', 'unit': 'Lbr', 'price': 125000},
             {'id': 'M.14', 'category': 'Bahan', 'name': 'Minyak Bekisting', 'unit': 'Liter', 'price': 43300},
-            # Arsitektur
             {'id': 'M.15', 'category': 'Bahan', 'name': 'Keramik 30x30', 'unit': 'M2', 'price': 65000},
             {'id': 'M.15b', 'category': 'Bahan', 'name': 'Keramik 40x40', 'unit': 'M2', 'price': 75000},
             {'id': 'M.15c', 'category': 'Bahan', 'name': 'Keramik 60x60', 'unit': 'M2', 'price': 120000},
             {'id': 'M.16', 'category': 'Bahan', 'name': 'Semen Warna', 'unit': 'Kg', 'price': 20000},
-            {'id': 'M.17', 'category': 'Bahan', 'name': 'Cat Tembok Interior', 'unit': 'Kg', 'price': 50000},
-            {'id': 'M.17b', 'category': 'Bahan', 'name': 'Cat Tembok Eksterior', 'unit': 'Kg', 'price': 75000},
+            {'id': 'M.17', 'category': 'Bahan', 'name': 'Cat Interior', 'unit': 'Kg', 'price': 50000},
+            {'id': 'M.17b', 'category': 'Bahan', 'name': 'Cat Eksterior', 'unit': 'Kg', 'price': 75000},
             {'id': 'M.17c', 'category': 'Bahan', 'name': 'Cat Plafon', 'unit': 'Kg', 'price': 45000},
             {'id': 'M.18', 'category': 'Bahan', 'name': 'Plamir', 'unit': 'Kg', 'price': 15000},
-            {'id': 'M.19', 'category': 'Bahan', 'name': 'Gypsum Board 9mm', 'unit': 'Lbr', 'price': 85000},
-            {'id': 'M.20', 'category': 'Bahan', 'name': 'Hollow Galvalum 4x4', 'unit': 'Btg', 'price': 25000},
-            # Atap & Pintu
-            {'id': 'M.21', 'category': 'Bahan', 'name': 'Baja Ringan C75.75', 'unit': 'Btg', 'price': 75000},
-            {'id': 'M.22', 'category': 'Bahan', 'name': 'Reng Baja Ringan', 'unit': 'Btg', 'price': 35000},
-            {'id': 'M.23', 'category': 'Bahan', 'name': 'Atap Metal Berpasir', 'unit': 'M2', 'price': 45000},
+            {'id': 'M.19', 'category': 'Bahan', 'name': 'Gypsum 9mm', 'unit': 'Lbr', 'price': 85000},
+            {'id': 'M.20', 'category': 'Bahan', 'name': 'Hollow 4x4', 'unit': 'Btg', 'price': 25000},
+            {'id': 'M.21', 'category': 'Bahan', 'name': 'Baja Ringan C75', 'unit': 'Btg', 'price': 75000},
+            {'id': 'M.22', 'category': 'Bahan', 'name': 'Reng Baja', 'unit': 'Btg', 'price': 35000},
+            {'id': 'M.23', 'category': 'Bahan', 'name': 'Atap Metal', 'unit': 'M2', 'price': 45000},
             {'id': 'M.24', 'category': 'Bahan', 'name': 'Seng Gelombang', 'unit': 'Lbr', 'price': 50000},
-            {'id': 'M.25', 'category': 'Bahan', 'name': 'Pintu UPVC Lengkap', 'unit': 'Unit', 'price': 500000},
-            {'id': 'M.26', 'category': 'Bahan', 'name': 'Kusen Aluminium 4"', 'unit': 'M', 'price': 100000},
-            {'id': 'M.27', 'category': 'Bahan', 'name': 'Kaca Polos 5mm', 'unit': 'M2', 'price': 120000},
-            {'id': 'M.28', 'category': 'Bahan', 'name': 'Engsel Pintu', 'unit': 'Bh', 'price': 25000},
-            # MEP
-            {'id': 'E.01', 'category': 'Bahan', 'name': 'Kabel NYM 3x2.5mm', 'unit': 'M', 'price': 12000},
+            
+            # Pintu Jendela
+            {'id': 'M.25', 'category': 'Bahan', 'name': 'Pintu UPVC', 'unit': 'Unit', 'price': 500000},
+            {'id': 'M.26', 'category': 'Bahan', 'name': 'Kusen Alum 4"', 'unit': 'M', 'price': 100000},
+            {'id': 'M.27', 'category': 'Bahan', 'name': 'Kaca 5mm', 'unit': 'M2', 'price': 120000},
+            {'id': 'M.28', 'category': 'Bahan', 'name': 'Engsel', 'unit': 'Bh', 'price': 25000},
+            
+            # MEP Materials
+            {'id': 'E.01', 'category': 'Bahan', 'name': 'Kabel NYM 3x2.5', 'unit': 'M', 'price': 12000},
             {'id': 'E.02', 'category': 'Bahan', 'name': 'Saklar Tunggal', 'unit': 'Bh', 'price': 29000},
             {'id': 'E.03', 'category': 'Bahan', 'name': 'Stop Kontak', 'unit': 'Bh', 'price': 27200},
             {'id': 'E.04', 'category': 'Bahan', 'name': 'Lampu LED 14W', 'unit': 'Bh', 'price': 46681},
@@ -158,12 +155,12 @@ def init_state():
         ]
         st.session_state.resources = pd.DataFrame(data_resources)
 
-    # D. Database AHSP Master (RESEP)
-    # Ini menentukan bagaimana harga dihitung dari Resources
+    # D. DATABASE AHSP MASTER (RESEP)
+    # FIX: ID KOMPONEN DISINI SUDAH SAYA COCOKKAN DENGAN RESOURCE DI ATAS
     if 'ahsp_master' not in st.session_state:
         st.session_state.ahsp_master = {
-            'AHSP.P.01': {'name': 'Pagar Sementara Seng', 'unit': 'm', 'components': [{'id': 'L.01', 'coef': 0.4}, {'id': 'L.02.2', 'coef': 0.2}, {'id': 'M.12', 'coef': 0.015}, {'id': 'M.24', 'coef': 1.2}, {'id': 'M.10', 'coef': 0.05}]},
-            'AHSP.T.01': {'name': 'Galian Tanah Manual', 'unit': 'm3', 'components': [{'id': 'L.01', 'coef': 0.75}, {'id': 'L.04', 'coef': 0.025}]},
+            'AHSP.P.01': {'name': 'Pagar Seng Gelombang', 'unit': 'm', 'components': [{'id': 'L.01', 'coef': 0.4}, {'id': 'L.02.2', 'coef': 0.2}, {'id': 'M.12', 'coef': 0.015}, {'id': 'M.24', 'coef': 1.2}, {'id': 'M.10', 'coef': 0.05}]},
+            'AHSP.T.01': {'name': 'Galian Tanah Manual 1m', 'unit': 'm3', 'components': [{'id': 'L.01', 'coef': 0.75}, {'id': 'L.04', 'coef': 0.025}]},
             'AHSP.S.01': {'name': 'Beton K-200 (Manual)', 'unit': 'm3', 'components': [{'id': 'L.01', 'coef': 1.65}, {'id': 'L.02.1', 'coef': 0.275}, {'id': 'M.01', 'coef': 352}, {'id': 'M.02', 'coef': 731}, {'id': 'M.04', 'coef': 1031}]},
             'AHSP.S.02': {'name': 'Pembesian Besi Polos', 'unit': 'kg', 'components': [{'id': 'L.01', 'coef': 0.007}, {'id': 'L.02.3', 'coef': 0.007}, {'id': 'M.08', 'coef': 1.05}, {'id': 'M.09', 'coef': 0.015}]},
             'AHSP.S.03': {'name': 'Pasang Bekisting', 'unit': 'm2', 'components': [{'id': 'L.01', 'coef': 0.66}, {'id': 'L.02.2', 'coef': 0.33}, {'id': 'M.11', 'coef': 0.04}, {'id': 'M.13', 'coef': 0.35}, {'id': 'M.14', 'coef': 0.1}]},
@@ -397,11 +394,11 @@ def calculate_ahsp_price(ahsp_id):
     if not recipe: return 0
     
     total = 0
-    # Lookup data resource dari dataframe
+    # Lookup data resource dari dataframe (Speed Optimized)
     res_map = {row['id']: row['price'] for row in st.session_state.resources.to_dict('records')}
     
     for comp in recipe['components']:
-        price = res_map.get(comp['id'], 0)
+        price = res_map.get(comp['id'], 0) # Jika ID tidak ketemu, return 0 (Safe)
         total += price * comp['coef']
     return total
 
@@ -413,13 +410,11 @@ def recalculate_totals():
     for group in st.session_state.rab_data:
         group_total = 0
         
-        # Safety Check for hierarchy
         if 'subgroups' in group:
             for sub in group['subgroups']:
                 sub_total = 0
                 for item in sub['items']:
                     # LOGIKA UTAMA: LINKING AHSP -> HARGA SATUAN
-                    # JIKA AHSP ADA DAN VALID, HITUNG. JIKA TIDAK, PAKAI MANUAL.
                     if item.get('ahsp') and item['ahsp'] in st.session_state.ahsp_master:
                         unit_price = calculate_ahsp_price(item['ahsp'])
                     else:
@@ -517,9 +512,8 @@ def generate_pdf():
 # ==========================================
 with st.sidebar:
     st.title("🏗️ RAB MASTER")
-    st.caption("Professional Edition")
+    st.caption("Professional Edition (FIX)")
     
-    # State-based menu navigation agar persist
     if 'sb_menu' not in st.session_state:
         st.session_state.sb_menu = "Dashboard"
         
@@ -534,37 +528,28 @@ with st.sidebar:
         st.session_state.tax_settings.update({"profit": profit_in, "ppn": ppn_in})
         st.rerun()
 
-    # Grand Total Display
     st.markdown("---")
     st.markdown("<p style='font-size: 12px; color: #666;'>Total Proyek:</p>", unsafe_allow_html=True)
-    st.markdown(f"<h2 style='color: #1e3a8a; margin-top: -15px;'>{format_idr(val_final)}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='color: #0d6efd; margin-top: -15px;'>{format_idr(val_final)}</h2>", unsafe_allow_html=True)
 
-# --- HALAMAN: DASHBOARD ---
+# --- DASHBOARD ---
 if menu == "Dashboard":
     st.title("Executive Summary")
     
-    # KPI Cards
     col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown(f"<div class='metric-card'><h3>Real Cost</h3><p style='font-size: 18px; font-weight: bold;'>{format_idr(real_cost)}</p></div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"<div class='metric-card'><h3>Profit</h3><p style='font-size: 18px; font-weight: bold;'>{format_idr(val_profit)}</p></div>", unsafe_allow_html=True)
-    with col3:
-        st.markdown(f"<div class='metric-card'><h3>PPN</h3><p style='font-size: 18px; font-weight: bold;'>{format_idr(val_ppn)}</p></div>", unsafe_allow_html=True)
-    with col4:
-        st.markdown(f"<div class='metric-card' style='border-color: #1e3a8a;'><h3>GRAND TOTAL</h3><p style='font-size: 18px; font-weight: bold; color: #1e3a8a;'>{format_idr(val_final)}</p></div>", unsafe_allow_html=True)
+    with col1: st.markdown(f"<div class='metric-card'><h3>Real Cost</h3><p style='font-size: 18px; font-weight: bold;'>{format_idr(real_cost)}</p></div>", unsafe_allow_html=True)
+    with col2: st.markdown(f"<div class='metric-card'><h3>Profit</h3><p style='font-size: 18px; font-weight: bold;'>{format_idr(val_profit)}</p></div>", unsafe_allow_html=True)
+    with col3: st.markdown(f"<div class='metric-card'><h3>PPN</h3><p style='font-size: 18px; font-weight: bold;'>{format_idr(val_ppn)}</p></div>", unsafe_allow_html=True)
+    with col4: st.markdown(f"<div class='metric-card' style='border-color: #0d6efd;'><h3>GRAND TOTAL</h3><p style='font-size: 18px; font-weight: bold; color: #0d6efd;'>{format_idr(val_final)}</p></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-
     c1, c2 = st.columns([2, 1])
     with c1:
         st.subheader("Distribusi Biaya")
         if chart_data:
             df_chart = pd.DataFrame(chart_data)
             fig = px.bar(df_chart, x='Divisi', y='Total', color='Divisi', text_auto='.2s')
-            fig.update_layout(paper_bgcolor="white", plot_bgcolor="white")
             st.plotly_chart(fig, use_container_width=True)
-            
     with c2:
         st.subheader("Info Proyek")
         with st.container(border=True):
@@ -572,28 +557,23 @@ if menu == "Dashboard":
             st.text_input("Lokasi", st.session_state.project_info['location'], key="lc")
             st.text_input("Owner", st.session_state.project_info['owner'], key="ow")
 
-# --- HALAMAN: INPUT RAB ---
+# --- INPUT RAB ---
 elif menu == "Rincian RAB (Input)":
     st.title("Rincian Anggaran Biaya")
     
-    # Tombol Pindah ke AHSP
     col_a, col_b = st.columns([3, 1])
     with col_b:
         st.button("⚙️ Kelola / Buat AHSP Baru", on_click=pindah_ke_ahsp, type="primary")
     
     st.divider()
 
-    # Loop Groups
     for g_idx, group in enumerate(st.session_state.rab_data):
         with st.expander(f"{group['id']}. {group['title']}  |  {format_idr(group['group_total'])}", expanded=True):
-            
             for s_idx, sub in enumerate(group['subgroups']):
                 st.markdown(f"**{sub['id']} - {sub['title']}**")
                 
-                # Konversi ke DataFrame untuk Editor
                 df_sub = pd.DataFrame(sub['items'])
                 
-                # EDITOR INTERAKTIF
                 edited_df = st.data_editor(
                     df_sub,
                     column_config={
@@ -603,10 +583,9 @@ elif menu == "Rincian RAB (Input)":
                         "ahsp": st.column_config.SelectboxColumn(
                             "Analisa (AHSP)", 
                             options=[None] + list(st.session_state.ahsp_master.keys()), 
-                            width="medium",
-                            help="Pilih Kode Analisa. Harga Satuan akan otomatis terisi."
+                            width="medium"
                         ),
-                        "manual_price": st.column_config.NumberColumn("Harga Manual", width="medium", help="Isi jika tidak menggunakan AHSP"),
+                        "manual_price": st.column_config.NumberColumn("Harga Manual", width="medium"),
                         "current_price": st.column_config.NumberColumn("Hrg Satuan (Auto)", disabled=True, format="Rp %d"),
                         "total_price": st.column_config.NumberColumn("Total", disabled=True, format="Rp %d")
                     },
@@ -615,47 +594,35 @@ elif menu == "Rincian RAB (Input)":
                     key=f"editor_{group['id']}_{sub['id']}"
                 )
                 
-                # --- LOGIKA LINKING DATA (INTI APLIKASI) ---
                 if not edited_df.equals(df_sub):
                     updated_items = edited_df.to_dict('records')
-                    
                     for item in updated_items:
-                        # 1. Bersihkan nilai NaN pada AHSP agar dropdown tidak error
                         if pd.isna(item['ahsp']): item['ahsp'] = None
-                        
-                        # 2. Logic Reset Manual Price jika AHSP dipilih (Opsional, agar rapi)
                         if item['ahsp'] and item['ahsp'] in st.session_state.ahsp_master:
                             item['manual_price'] = 0 
                         
                     st.session_state.rab_data[g_idx]['subgroups'][s_idx]['items'] = updated_items
-                    st.rerun() # Refresh untuk update Total Harga di UI
-                # ---------------------------------------------
+                    st.rerun()
                 st.divider()
 
-# --- HALAMAN: DATABASE HARGA ---
+# --- DATABASE HARGA ---
 elif menu == "Database Harga":
     st.title("Database Harga Dasar")
-    st.info("💡 Ubah harga di sini -> AHSP update -> RAB update (Otomatis)")
-    
     edited_res = st.data_editor(
         st.session_state.resources,
-        column_config={
-            "price": st.column_config.NumberColumn("Harga (Rp)", format="Rp %d")
-        },
+        column_config={"price": st.column_config.NumberColumn("Harga (Rp)", format="Rp %d")},
         use_container_width=True,
         num_rows="dynamic",
         key="res_editor"
     )
-    
     if not edited_res.equals(st.session_state.resources):
         st.session_state.resources = edited_res
         st.rerun()
 
-# --- HALAMAN: ANALISA AHSP ---
+# --- ANALISA AHSP ---
 elif menu == "Analisa AHSP":
     st.title("Master Analisa (AHSP)")
     
-    # 1. Menu Tambah AHSP
     with st.expander("➕ Buat Analisa Baru (Custom)", expanded=False):
         c1, c2, c3 = st.columns([1, 2, 1])
         with c1: new_ahsp_id = st.text_input("Kode (Cth: AHSP.X.01)")
@@ -663,7 +630,6 @@ elif menu == "Analisa AHSP":
         with c3: new_ahsp_unit = st.selectbox("Satuan", ["M2", "M3", "Bh", "Ls", "Kg", "M'"])
         
         st.write("Komponen Pembentuk Harga:")
-        # Template Input Komponen
         comp_template = pd.DataFrame([{"Resource_ID": "L.01", "Koefisien": 1.0}])
         all_res_ids = st.session_state.resources['id'].tolist()
         
@@ -697,7 +663,6 @@ elif menu == "Analisa AHSP":
 
     st.divider()
 
-    # 2. Viewer AHSP
     sel_ahsp = st.selectbox("Lihat Detail Analisa:", list(st.session_state.ahsp_master.keys()))
     if sel_ahsp:
         dat = st.session_state.ahsp_master[sel_ahsp]
@@ -723,10 +688,9 @@ elif menu == "Analisa AHSP":
             total_analisa = df_c['Total'].sum()
             st.metric("Harga Satuan Analisa", format_idr(total_analisa))
 
-# --- HALAMAN: FILE ---
+# --- FILE ---
 elif menu == "File & Laporan":
     st.title("Export & Import")
-    
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Simpan Proyek")
@@ -739,7 +703,6 @@ elif menu == "File & Laporan":
         }
         json_str = json.dumps(full_dump, indent=2)
         st.download_button("💾 Download JSON Project", json_str, "rab_proyek.json", "application/json")
-        
         st.write("")
         if st.button("🖨️ Generate PDF Laporan"):
             pdf_bytes = generate_pdf()
