@@ -2,44 +2,36 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import json
-import io
 from fpdf import FPDF
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & TEMA CERAH
+# 1. KONFIGURASI HALAMAN & TEMA (SYSTEM LEVEL)
 # ==========================================
-st.set_page_config(page_title="RAB MASTER PRO", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="RAB MASTER PRO | ENGINEX", page_icon="🏗️", layout="wide")
 
-# CSS: TEMA CERAH (SUPER BRIGHT MODE)
+# CSS: TEMA CERAH & PROFESSIONAL (GAGAH)
 st.markdown("""
 <style>
-    /* Background Utama Putih */
+    /* Global Settings */
     .stApp {
         background-color: #ffffff;
         color: #2c3e50;
     }
     
-    /* Sidebar Abu-abu Muda */
+    /* Sidebar Styling */
     section[data-testid="stSidebar"] {
         background-color: #f8f9fa;
         border-right: 1px solid #e9ecef;
     }
     
-    /* Expander Putih dengan Border Halus */
-    .stExpander {
-        background-color: #ffffff;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
-    
-    /* Judul & Header Biru Profesional */
+    /* Headings */
     h1, h2, h3, h4 {
         color: #0d6efd !important;
         font-family: 'Segoe UI', sans-serif;
+        font-weight: 600;
     }
     
-    /* Kartu Metric */
+    /* Metric Cards */
     .metric-card {
         background-color: #fff;
         border: 1px solid #dee2e6;
@@ -47,22 +39,30 @@ st.markdown("""
         border-radius: 10px;
         text-align: center;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+    }
+    .metric-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.1);
     }
     
-    /* Tabel Data Editor */
-    .stDataFrame {
-        border: 1px solid #ced4da;
-    }
-    
-    /* Tombol Biru */
+    /* Buttons */
     div.stButton > button {
         background-color: #0d6efd;
         color: white;
         border-radius: 6px;
         border: none;
+        padding: 0.5rem 1rem;
+        font-weight: bold;
     }
     div.stButton > button:hover {
         background-color: #0b5ed7;
+    }
+    
+    /* Tables */
+    .stDataFrame {
+        border: 1px solid #ced4da;
+        border-radius: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -71,7 +71,7 @@ def format_idr(val):
     return f"Rp {val:,.0f}".replace(",", ".")
 
 # ==========================================
-# 2. INISIALISASI DATABASE (LENGKAP & FIX ID)
+# 2. INISIALISASI DATABASE (ROBUST STATE)
 # ==========================================
 def init_state():
     # A. Project Info
@@ -89,7 +89,6 @@ def init_state():
         st.session_state.tax_settings = {"profit": 10.0, "ppn": 11.0}
 
     # C. DATABASE RESOURCES (HARGA DASAR)
-    # ID disini Wajib sama dengan komponen AHSP
     if 'resources' not in st.session_state:
         data_resources = [
             {'id': 'L.01', 'category': 'Upah', 'name': 'Pekerja', 'unit': 'OH', 'price': 107000},
@@ -156,7 +155,6 @@ def init_state():
         st.session_state.resources = pd.DataFrame(data_resources)
 
     # D. DATABASE AHSP MASTER (RESEP)
-    # FIX: ID KOMPONEN DISINI SUDAH SAYA COCOKKAN DENGAN RESOURCE DI ATAS
     if 'ahsp_master' not in st.session_state:
         st.session_state.ahsp_master = {
             'AHSP.P.01': {'name': 'Pagar Seng Gelombang', 'unit': 'm', 'components': [{'id': 'L.01', 'coef': 0.4}, {'id': 'L.02.2', 'coef': 0.2}, {'id': 'M.12', 'coef': 0.015}, {'id': 'M.24', 'coef': 1.2}, {'id': 'M.10', 'coef': 0.05}]},
@@ -181,7 +179,7 @@ def init_state():
             'AHSP.P.02': {'name': 'Instalasi Air Bersih', 'unit': 'm', 'components': [{'id': 'L.02.6', 'coef': 0.15}, {'id': 'P.01', 'coef': 1.2}]},
         }
 
-    # E. Data RAB (Hierarki: Group -> SubGroup -> Items)
+    # E. Data RAB
     if 'rab_data' not in st.session_state:
         st.session_state.rab_data = [
             {
@@ -388,17 +386,15 @@ init_state()
 # ==========================================
 # 4. LOGIC ENGINE (THE CALCULATOR)
 # ==========================================
-def calculate_ahsp_price(ahsp_id):
-    """Menghitung harga satuan AHSP berdasarkan harga Resource terkini"""
+def calculate_ahsp_price(ahsp_id, res_map):
+    """Menghitung harga satuan AHSP dengan Resource Map yang dioptimasi"""
     recipe = st.session_state.ahsp_master.get(ahsp_id)
     if not recipe: return 0
     
     total = 0
-    # Lookup data resource dari dataframe (Speed Optimized)
-    res_map = {row['id']: row['price'] for row in st.session_state.resources.to_dict('records')}
-    
     for comp in recipe['components']:
-        price = res_map.get(comp['id'], 0) # Jika ID tidak ketemu, return 0 (Safe)
+        # Ambil harga dari map, jika tidak ada (misal dihapus), return 0
+        price = res_map.get(comp['id'], 0)
         total += price * comp['coef']
     return total
 
@@ -406,6 +402,10 @@ def recalculate_totals():
     """Menghitung ulang seluruh RAB (Core Logic)"""
     grand_total_fisik = 0
     chart_data = []
+
+    # 1. Buat Mapping Resource SEKALI SAJA di awal agar cepat
+    # Ini adalah kunci agar tidak perlu loop dataframe berkali-kali
+    res_map = st.session_state.resources.set_index('id')['price'].to_dict()
 
     for group in st.session_state.rab_data:
         group_total = 0
@@ -416,11 +416,12 @@ def recalculate_totals():
                 for item in sub['items']:
                     # LOGIKA UTAMA: LINKING AHSP -> HARGA SATUAN
                     if item.get('ahsp') and item['ahsp'] in st.session_state.ahsp_master:
-                        unit_price = calculate_ahsp_price(item['ahsp'])
+                        # Pass res_map ke fungsi hitung
+                        unit_price = calculate_ahsp_price(item['ahsp'], res_map)
                     else:
                         unit_price = item.get('manual_price', 0)
                     
-                    # UPDATE DATA DI STATE (PENTING AGAR TIDAK 0 SAAT RENDER)
+                    # UPDATE DATA DI STATE
                     item['current_price'] = unit_price
                     item['total_price'] = unit_price * item['vol']
                     sub_total += item['total_price']
@@ -574,6 +575,7 @@ elif menu == "Rincian RAB (Input)":
                 
                 df_sub = pd.DataFrame(sub['items'])
                 
+                # Editor untuk mengubah Volume atau memilih AHSP
                 edited_df = st.data_editor(
                     df_sub,
                     column_config={
@@ -586,6 +588,7 @@ elif menu == "Rincian RAB (Input)":
                             width="medium"
                         ),
                         "manual_price": st.column_config.NumberColumn("Harga Manual", width="medium"),
+                        # Kolom Auto (dihitung oleh sistem)
                         "current_price": st.column_config.NumberColumn("Hrg Satuan (Auto)", disabled=True, format="Rp %d"),
                         "total_price": st.column_config.NumberColumn("Total", disabled=True, format="Rp %d")
                     },
@@ -594,15 +597,19 @@ elif menu == "Rincian RAB (Input)":
                     key=f"editor_{group['id']}_{sub['id']}"
                 )
                 
+                # DETEKSI PERUBAHAN: Jika ada edit, update state & rerun
                 if not edited_df.equals(df_sub):
                     updated_items = edited_df.to_dict('records')
                     for item in updated_items:
+                        # Bersihkan data NaN jika user menghapus pilihan AHSP
                         if pd.isna(item['ahsp']): item['ahsp'] = None
+                        
+                        # Reset harga manual jika AHSP dipilih
                         if item['ahsp'] and item['ahsp'] in st.session_state.ahsp_master:
                             item['manual_price'] = 0 
                         
                     st.session_state.rab_data[g_idx]['subgroups'][s_idx]['items'] = updated_items
-                    st.rerun()
+                    st.rerun() # Force rerun untuk menghitung ulang total
                 st.divider()
 
 # --- DATABASE HARGA ---
@@ -669,7 +676,8 @@ elif menu == "Analisa AHSP":
         st.subheader(f"{sel_ahsp} - {dat['name']}")
         
         comps = []
-        res_map = {row['id']: row for row in st.session_state.resources.to_dict('records')}
+        # Mapping cepat untuk view
+        res_map = st.session_state.resources.set_index('id').to_dict('index')
         
         for c in dat['components']:
             r = res_map.get(c['id'])
